@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FactionTap</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #050810;
+    --surface: #0d1220;
+    --border: #1e2a40;
+    --accent: #00f0ff;
+    --gold: #ffd700;
+    --text: #c8d8f0;
+    --muted: #4a5a7a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* PARTICLES */
+  #particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+
+  /* SCREENS */
+  .screen { display: none; position: relative; z-index: 1; min-height: 100vh; padding: 16px; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ===== WELCOME SCREEN ===== */
+  #welcome {
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    background: radial-gradient(ellipse at 50% 30%, #0a1a3a 0%, var(--bg) 70%);
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #00f0ff, #0080ff, #8000ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 20px #00f0ff80);
+  }
+
+  .tagline {
+    font-size: 16px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .factions-preview {
+    display: flex;
+    gap: 12px;
+    margin: 8px 0;
+  }
+
+  .faction-card-preview {
+    width: 80px;
+    height: 100px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .faction-card-preview::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.15;
+    transition: opacity 0.3s;
+  }
+
+  .faction-card-preview:hover::before, .faction-card-preview.selected::before { opacity: 0.35; }
+  .faction-card-preview.selected { transform: scale(1.1); }
+
+  .faction-card-preview .icon { font-size: 28px; }
+  .faction-card-preview .name { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Faction colors */
+  .f-fire { border-color: #ff4400; --fc: #ff4400; }
+  .f-fire::before { background: #ff4400; }
+  .f-ice  { border-color: #00ccff; --fc: #00ccff; }
+  .f-ice::before  { background: #00ccff; }
+  .f-storm{ border-color: #aa00ff; --fc: #aa00ff; }
+  .f-storm::before{ background: #aa00ff; }
+  .f-earth{ border-color: #44cc00; --fc: #44cc00; }
+  .f-earth::before{ background: #44cc00; }
+
+  .f-fire .name  { color: #ff6630; }
+  .f-ice .name   { color: #44ddff; }
+  .f-storm .name { color: #cc44ff; }
+  .f-earth .name { color: #66ee22; }
+
+  .input-group {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .input-label { font-size: 12px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+
+  input[type=text] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 12px 16px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+
+  .btn {
+    background: linear-gradient(135deg, #003888, #0066cc);
+    border: 1px solid #0088ff;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 14px 28px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px #0066ff40;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:hover  { box-shadow: 0 4px 30px #0088ff60; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .error-msg { color: #ff4466; font-size: 13px; min-height: 18px; }
+
+  /* ===== GAME SCREEN ===== */
+  #game {
+    gap: 0;
+    background: radial-gradient(ellipse at 50% -10%, #0a1530 0%, var(--bg) 60%);
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+
+  .player-info { display: flex; align-items: center; gap: 10px; }
+
+  .faction-badge {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    border: 2px solid currentColor;
+  }
+
+  .player-name { font-size: 16px; font-weight: 700; }
+  .player-score-small { font-size: 12px; color: var(--muted); }
+
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 7px 4px;
+    border-radius: 7px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: var(--border);
+    color: var(--accent);
+  }
+
+  /* TAP AREA */
+  .tab-content { display: none; flex: 1; flex-direction: column; }
+  .tab-content.active { display: flex; }
+
+  .tap-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px 0;
+  }
+
+  .score-display {
+    text-align: center;
+  }
+
+  .score-num {
+    font-family: 'Orbitron', monospace;
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .score-label { font-size: 12px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-top: 4px; }
+
+  .tap-btn {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+    position: relative;
+    transition: transform 0.08s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  .tap-btn:active { transform: scale(0.92); }
+
+  .tap-btn::before, .tap-btn::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    inset: -6px;
+    border: 2px solid currentColor;
+    opacity: 0.3;
+  }
+  .tap-btn::after { inset: -14px; opacity: 0.1; }
+
+  /* Faction tap button colors */
+  .tap-btn.f-fire  { background: radial-gradient(circle, #5a0000, #2a0000); color: #ff4400; box-shadow: 0 0 40px #ff440040, inset 0 0 30px #ff220010; }
+  .tap-btn.f-ice   { background: radial-gradient(circle, #003a5a, #001a2a); color: #00ccff; box-shadow: 0 0 40px #00ccff40, inset 0 0 30px #00aaff10; }
+  .tap-btn.f-storm { background: radial-gradient(circle, #2a0055, #100022); color: #aa00ff; box-shadow: 0 0 40px #aa00ff40, inset 0 0 30px #8800ff10; }
+  .tap-btn.f-earth { background: radial-gradient(circle, #0a2a00, #051200); color: #44cc00; box-shadow: 0 0 40px #44cc0040, inset 0 0 30px #22aa0010; }
+
+  .faction-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  .tap-hint { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* +1 float animation */
+  .float-plus {
+    position: fixed;
+    font-family: 'Orbitron', monospace;
+    font-size: 24px;
+    font-weight: 900;
+    pointer-events: none;
+    z-index: 999;
+    animation: floatUp 0.8s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.4); }
+  }
+
+  /* LEADERBOARDS */
+  .lb-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-bottom: 16px;
+  }
+
+  .lb-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lb-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+  .lb-item.is-me { border-color: var(--accent); background: #00f0ff08; }
+
+  .lb-rank {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    width: 28px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .lb-rank.top1 { color: var(--gold); }
+  .lb-rank.top2 { color: #c0c0c0; }
+  .lb-rank.top3 { color: #cd7f32; }
+
+  .lb-icon { font-size: 22px; }
+  .lb-info { flex: 1; min-width: 0; }
+  .lb-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb-sub  { font-size: 11px; color: var(--muted); }
+
+  .lb-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .progress-bar-wrap {
+    background: var(--border);
+    border-radius: 4px;
+    height: 4px;
+    width: 100%;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Ripple on tap */
+  .ripple {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 998;
+    animation: rippleAnim 0.5s ease-out forwards;
+  }
+  @keyframes rippleAnim {
+    0%   { transform: scale(0); opacity: 0.6; }
+    100% { transform: scale(3); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<!-- WELCOME SCREEN -->
+<div id="welcome" class="screen active">
+  <div class="logo">FACTION<br>TAP</div>
+  <div class="tagline">Обери свою сторону. Тапай за неї.</div>
+
+  <div class="factions-preview">
+    <div class="faction-card-preview f-fire" data-faction="fire" onclick="selectFaction(this)">
+      <span class="icon">🔥</span>
+      <span class="name">Вогонь</span>
+    </div>
+    <div class="faction-card-preview f-ice" data-faction="ice" onclick="selectFaction(this)">
+      <span class="icon">❄️</span>
+      <span class="name">Лід</span>
+    </div>
+    <div class="faction-card-preview f-storm" data-faction="storm" onclick="selectFaction(this)">
+      <span class="icon">⚡</span>
+      <span class="name">Буря</span>
+    </div>
+    <div class="faction-card-preview f-earth" data-faction="earth" onclick="selectFaction(this)">
+      <span class="icon">🌿</span>
+      <span class="name">Земля</span>
+    </div>
+  </div>
+
+  <div class="input-group">
+    <div class="input-label">Твоє ім'я у грі</div>
+    <input type="text" id="nameInput" placeholder="Введи нікнейм..." maxlength="20"
+      oninput="validateForm()" onkeydown="if(event.key==='Enter') tryStart()">
+    <div class="error-msg" id="errMsg"></div>
+  </div>
+
+  <button class="btn" id="startBtn" onclick="tryStart()" disabled>
+    Почати гру →
+  </button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game" class="screen">
+  <div class="top-bar">
+    <div class="player-info">
+      <div class="faction-badge" id="topBadge"></div>
+      <div>
+        <div class="player-name" id="topName">-</div>
+        <div class="player-score-small" id="topScore">0 тапів</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('tap', this)">ТАП</button>
+      <button class="tab" onclick="switchTab('players', this)">ГРАВЦІ</button>
+      <button class="tab" onclick="switchTab('factions', this)">ФРАКЦІЇ</button>
+    </div>
+  </div>
+
+  <!-- TAP TAB -->
+  <div class="tab-content active" id="tab-tap">
+    <div class="tap-area">
+      <div class="score-display">
+        <div class="score-num" id="myScore">0</div>
+        <div class="score-label">Твої тапи</div>
+      </div>
+
+      <button class="tap-btn" id="tapBtn" onclick="handleTap(event)"></button>
+
+      <div class="faction-label" id="factionLabel">-</div>
+      <div class="tap-hint">↑ натисни, щоб тапнути ↑</div>
+    </div>
+  </div>
+
+  <!-- PLAYERS LEADERBOARD -->
+  <div class="tab-content" id="tab-players">
+    <div class="lb-section" id="playersLb"></div>
+  </div>
+
+  <!-- FACTIONS LEADERBOARD -->
+  <div class="tab-content" id="tab-factions">
+    <div class="lb-section" id="factionsLb"></div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+const FACTIONS = {
+  fire:  { name: 'Вогонь',  icon: '🔥', cls: 'f-fire',  color: '#ff4400' },
+  ice:   { name: 'Лід',     icon: '❄️', cls: 'f-ice',   color: '#00ccff' },
+  storm: { name: 'Буря',    icon: '⚡',  cls: 'f-storm', color: '#aa00ff' },
+  earth: { name: 'Земля',   icon: '🌿', cls: 'f-earth', color: '#44cc00' },
+};
+
+let selectedFaction = null;
+let player = null;
+
+// Shared game state (simulated — in real Telegram app this would be a backend)
+let gameState = JSON.parse(localStorage.getItem('factionTapState') || 'null') || {
+  players: {},
+  factions: { fire: 0, ice: 0, storm: 0, earth: 0 }
+};
+
+function saveState() {
+  localStorage.setItem('factionTapState', JSON.stringify(gameState));
+}
+
+// ===== PARTICLES =====
+(function() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let pts = [];
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  for (let i = 0; i < 60; i++) {
+    pts.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: -Math.random() * 0.4 - 0.1,
+      r: Math.random() * 1.5 + 0.5,
+      a: Math.random()
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pts.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,160,255,${p.a * 0.5})`;
+      ctx.fill();
+      p.x += p.vx; p.y += p.vy;
+      p.a += (Math.random() - 0.5) * 0.02;
+      p.a = Math.max(0.05, Math.min(1, p.a));
+      if (p.y < -5) { p.y = canvas.height + 5; p.x = Math.random() * canvas.width; }
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ===== WELCOME =====
+function selectFaction(el) {
+  document.querySelectorAll('.faction-card-preview').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedFaction = el.dataset.faction;
+  validateForm();
+}
+
+function validateForm() {
+  const name = document.getElementById('nameInput').value.trim();
+  const btn  = document.getElementById('startBtn');
+  const err  = document.getElementById('errMsg');
+
+  if (!selectedFaction) { err.textContent = 'Обери фракцію'; btn.disabled = true; return; }
+  if (name.length < 2)  { err.textContent = name.length ? 'Ім\'я занадто коротке' : ''; btn.disabled = true; return; }
+
+  err.textContent = '';
+  btn.disabled = false;
+}
+
+function tryStart() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!selectedFaction || name.length < 2) return;
+
+  const id = 'player_' + Math.random().toString(36).slice(2, 10);
+  player = { id, name, faction: selectedFaction, score: 0 };
+
+  if (!gameState.players[id]) {
+    gameState.players[id] = { ...player };
+  }
+  saveState();
+  startGame();
+}
+
+// ===== GAME =====
+function startGame() {
+  const f = FACTIONS[player.faction];
+
+  // Top bar
+  const badge = document.getElementById('topBadge');
+  badge.textContent = f.icon;
+  badge.style.color = f.color;
+  document.getElementById('topName').textContent = player.name;
+
+  // Tap button
+  const btn = document.getElementById('tapBtn');
+  btn.textContent = f.icon;
+  btn.className = `tap-btn ${f.cls}`;
+
+  document.getElementById('factionLabel').textContent = `Фракція: ${f.name}`;
+  document.getElementById('factionLabel').style.color = f.color;
+
+  updateScoreDisplay();
+  renderLeaderboards();
+
+  document.getElementById('welcome').classList.remove('active');
+  document.getElementById('game').classList.add('active');
+
+  // Auto-add some bot players for demo if fresh
+  if (Object.keys(gameState.players).length <= 1) addBotPlayers();
+}
+
+function addBotPlayers() {
+  const bots = [
+    { name: 'DragonMaster', faction: 'fire', score: Math.floor(Math.random()*500+100) },
+    { name: 'IceQueen',     faction: 'ice',  score: Math.floor(Math.random()*400+80) },
+    { name: 'ThunderGod',   faction: 'storm',score: Math.floor(Math.random()*350+60) },
+    { name: 'EarthShaker',  faction: 'earth',score: Math.floor(Math.random()*300+40) },
+    { name: 'FlameWolf',    faction: 'fire', score: Math.floor(Math.random()*250+30) },
+    { name: 'FrostBite',    faction: 'ice',  score: Math.floor(Math.random()*200+20) },
+  ];
+  bots.forEach(b => {
+    const id = 'bot_' + Math.random().toString(36).slice(2, 8);
+    gameState.players[id] = { id, ...b };
+    gameState.factions[b.faction] = (gameState.factions[b.faction] || 0) + b.score;
+  });
+  saveState();
+}
+
+function handleTap(e) {
+  player.score++;
+  gameState.players[player.id] = { ...player };
+  gameState.factions[player.faction] = (gameState.factions[player.faction] || 0) + 1;
+  saveState();
+
+  updateScoreDisplay();
+
+  // +1 float
+  const plus = document.createElement('div');
+  plus.className = 'float-plus';
+  plus.textContent = '+1';
+  plus.style.left  = (e.clientX - 15) + 'px';
+  plus.style.top   = (e.clientY - 20) + 'px';
+  plus.style.color = FACTIONS[player.faction].color;
+  document.body.appendChild(plus);
+  setTimeout(() => plus.remove(), 800);
+
+  // Ripple
+  const rip = document.createElement('div');
+  rip.className = 'ripple';
+  const sz = 60;
+  rip.style.width  = sz + 'px';
+  rip.style.height = sz + 'px';
+  rip.style.left   = (e.clientX - sz/2) + 'px';
+  rip.style.top    = (e.clientY - sz/2) + 'px';
+  rip.style.background = FACTIONS[player.faction].color + '80';
+  document.body.appendChild(rip);
+  setTimeout(() => rip.remove(), 500);
+}
+
+function updateScoreDisplay() {
+  const f = FACTIONS[player.faction];
+  document.getElementById('myScore').textContent = player.score.toLocaleString();
+  document.getElementById('myScore').style.color = f.color;
+  document.getElementById('topScore').textContent = player.score.toLocaleString() + ' тапів';
+}
+
+// ===== LEADERBOARDS =====
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'players' || name === 'factions') renderLeaderboards();
+}
+
+function renderLeaderboards() {
+  renderPlayers();
+  renderFactions();
+}
+
+function renderPlayers() {
+  const sorted = Object.values(gameState.players).sort((a, b) => b.score - a.score);
+  const maxScore = sorted[0]?.score || 1;
+  const container = document.getElementById('playersLb');
+  container.innerHTML = '<div class="lb-title">🏆 Топ гравців</div>';
+
+  sorted.slice(0, 20).forEach((p, i) => {
+    const f = FACTIONS[p.faction];
+    const isMe = p.id === player?.id;
+    const rank = i + 1;
+    const rankCls = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+
+    container.innerHTML += `
+      <div class="lb-item ${isMe ? 'is-me' : ''}">
+        <div class="lb-rank ${rankCls}">${rankEmoji}</div>
+        <div class="lb-icon">${f.icon}</div>
+        <div class="lb-info">
+          <div class="lb-name">${escapeHtml(p.name)}${isMe ? ' (ти)' : ''}</div>
+          <div class="lb-sub">${f.name}</div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" style="width:${Math.round(p.score/maxScore*100)}%; background:${f.color}"></div>
+          </div>
+        </div>
+        <div class="lb-score">${p.score.toLocaleString()}</div>
+      </div>`;
+  });
+}
+
+function renderFactions() {
+  const fData = Object.entries(gameState.factions)
+    .map(([key, score]) => ({ key, score, ...FACTIONS[key] }))
+    .sort((a, b) => b.score - a.score);
+  const maxScore = fData[0]?.score || 1;
+  const container = document.getElementById('factionsLb');
+  container.innerHTML = '<div class="lb-title">⚔️ Рейтинг фракцій</div>';
+
+  fData.forEach((f, i) => {
+    const rank = i + 1;
+    const isMyFaction = f.key === player?.faction;
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+    const members = Object.values(gameState.players).filter(p => p.faction === f.key).length;
+
+    container.innerHTML += `
+      <div class="lb-item ${isMyFaction ? 'is-me' : ''}">
+        <div class="lb-rank">${rankEmoji}</div>
+        <div class="lb-icon">${f.icon}</div>
+        <div class="lb-info">
+          <div class="lb-name">${f.name}${isMyFaction ? ' (твоя)' : ''}</div>
+          <div class="lb-sub">${members} гравців</div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" style="width:${Math.round(f.score/maxScore*100)}%; background:${f.color}"></div>
+          </div>
+        </div>
+        <div class="lb-score">${f.score.toLocaleString()}</div>
+      </div>`;
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Telegram WebApp init
+if (window.Telegram?.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
+</script>
+</body>
+</html>
