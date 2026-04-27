@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FactionTap</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
+:root{--bg:#050810;--surface:#0d1220;--border:#1e2a40;--accent:#00f0ff;--gold:#ffd700;--text:#c8d8f0;--muted:#4a5a7a;--danger:#ff4466;--success:#00ff88;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;user-select:none;}
+#particles{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.screen{display:none;position:relative;z-index:1;min-height:100vh;padding:16px;}
+.screen.active{display:flex;flex-direction:column;}
+#loading{align-items:center;justify-content:center;gap:20px;}
+.spinner{width:50px;height:50px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;color:var(--muted);}
+#welcome{align-items:center;justify-content:center;gap:14px;background:radial-gradient(ellipse at 50% 30%,#0a1a3a 0%,var(--bg) 70%);}
+.logo{font-family:'Orbitron',monospace;font-size:36px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#00f0ff,#0080ff,#8000ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px #00f0ff80);text-align:center;}
+.tagline{font-size:12px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;text-align:center;}
+.welcome-user{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;width:100%;max-width:320px;}
+.welcome-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#0066ff,#00ccff);display:flex;align-items:center;justify-content:center;font-size:17px;}
+.welcome-name{font-size:15px;font-weight:700;}
+.welcome-sub{font-size:11px;color:var(--muted);}
+.section-title{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;width:100%;max-width:320px;}
+.factions-list{width:100%;max-width:320px;display:flex;flex-direction:column;gap:7px;max-height:200px;overflow-y:auto;}
+.faction-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:10px 14px;cursor:pointer;transition:all .2s;}
+.faction-item.selected{border-color:var(--accent);background:#00f0ff08;}
+.faction-item .fi-icon{font-size:22px;}
+.faction-item .fi-info{flex:1;}
+.faction-item .fi-name{font-size:14px;font-weight:700;}
+.faction-item .fi-members{font-size:10px;color:var(--muted);}
+.faction-item .fi-score{font-family:'Orbitron',monospace;font-size:11px;color:var(--accent);}
+.create-faction-btn{width:100%;max-width:320px;background:var(--surface);border:2px dashed var(--border);border-radius:12px;color:var(--muted);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;padding:11px;text-align:center;transition:all .2s;}
+.create-faction-btn:active{border-color:var(--accent);color:var(--accent);}
+.modal-overlay{display:none;position:fixed;inset:0;background:#000a;z-index:100;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;}
+.modal-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;}
+.emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.emoji-opt{background:var(--bg);border:2px solid transparent;border-radius:8px;cursor:pointer;font-size:19px;padding:5px;text-align:center;transition:all .15s;}
+.emoji-opt.selected{border-color:var(--accent);background:#00f0ff15;}
+input[type=text]{background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;padding:10px 14px;width:100%;outline:none;transition:border-color .2s;}
+input[type=text]:focus{border-color:var(--accent);}
+.modal-btns{display:flex;gap:8px;}
+.btn{background:linear-gradient(135deg,#003888,#0066cc);border:1px solid #0088ff;border-radius:10px;color:#fff;cursor:pointer;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:1px;padding:12px;text-transform:uppercase;transition:all .2s;flex:1;}
+.btn:active{transform:scale(.96);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-cancel{background:var(--bg);border-color:var(--border);color:var(--muted);}
+.btn-full{max-width:320px;width:100%;}
+.error-msg{color:var(--danger);font-size:12px;min-height:16px;}
+#game{gap:0;background:radial-gradient(ellipse at 50% -10%,#0a1530 0%,var(--bg) 60%);}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px;}
+.player-info{display:flex;align-items:center;gap:8px;}
+.faction-badge{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid var(--accent);}
+.player-name{font-size:14px;font-weight:700;}
+.player-score-small{font-size:10px;color:var(--muted);}
+.online-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--success);margin-right:3px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{display:flex;background:var(--surface);border-radius:10px;padding:3px;gap:2px;}
+.tab{flex:1;background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;padding:6px 2px;border-radius:7px;text-transform:uppercase;transition:all .2s;}
+.tab.active{background:var(--border);color:var(--accent);}
+.tab-content{display:none;flex:1;flex-direction:column;}
+.tab-content.active{display:flex;}
+.tap-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:12px 0;}
+.score-display{text-align:center;}
+.score-num{font-family:'Orbitron',monospace;font-size:52px;font-weight:900;line-height:1;transition:transform .05s;}
+.score-num.bump{transform:scale(1.12);}
+.score-label{font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-top:4px;}
+.tap-btn{width:165px;height:165px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:58px;position:relative;transition:transform .08s;outline:none;background:radial-gradient(circle,#001a3a,#000a1a);color:var(--accent);box-shadow:0 0 40px #00f0ff40;}
+.tap-btn:active{transform:scale(.91);}
+.tap-btn::before,.tap-btn::after{content:'';position:absolute;border-radius:50%;inset:-6px;border:2px solid currentColor;opacity:.25;}
+.tap-btn::after{inset:-14px;opacity:.1;}
+.faction-label{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.7;}
+.sync-status{font-size:10px;color:var(--muted);}
+.sync-status.syncing{color:var(--gold);}
+.sync-status.synced{color:var(--success);}
+.sync-status.error{color:var(--danger);}
+.float-plus{position:fixed;font-family:'Orbitron',monospace;font-size:22px;font-weight:900;pointer-events:none;z-index:999;animation:floatUp .7s ease-out forwards;}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-70px) scale(1.3)}}
+.ripple{position:fixed;border-radius:50%;pointer-events:none;z-index:998;animation:rippleAnim .5s ease-out forwards;}
+@keyframes rippleAnim{0%{transform:scale(0);opacity:.5}100%{transform:scale(3);opacity:0}}
+.lb-section{flex:1;display:flex;flex-direction:column;gap:7px;overflow-y:auto;padding-bottom:16px;}
+.lb-header{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.lb-title{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+.lb-refresh{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 8px;}
+.lb-item{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:10px;padding:9px 12px;border:1px solid var(--border);}
+.lb-item.is-me{border-color:var(--accent);background:#00f0ff08;}
+.lb-rank{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;width:24px;text-align:center;color:var(--muted);}
+.lb-rank.top1{color:var(--gold);}
+.lb-rank.top2{color:#c0c0c0;}
+.lb-rank.top3{color:#cd7f32;}
+.lb-icon{font-size:20px;}
+.lb-info{flex:1;min-width:0;}
+.lb-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-sub{font-size:10px;color:var(--muted);}
+.progress-bar-wrap{background:var(--border);border-radius:4px;height:3px;width:100%;margin-top:3px;overflow:hidden;}
+.progress-bar{height:100%;border-radius:4px;transition:width .5s ease;}
+.lb-score{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.lb-empty{text-align:center;color:var(--muted);font-size:13px;padding:30px;}
+.my-faction-section{flex:1;display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-bottom:16px;}
+.faction-info-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;}
+.faction-big-icon{font-size:46px;text-align:center;}
+.faction-big-name{font-family:'Orbitron',monospace;font-size:17px;font-weight:700;text-align:center;}
+.faction-stats{display:flex;gap:10px;justify-content:center;}
+.faction-stat{background:var(--bg);border-radius:10px;padding:8px 16px;text-align:center;}
+.faction-stat-num{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;color:var(--accent);}
+.faction-stat-label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.edit-faction-btn{background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:10px;text-align:center;transition:all .2s;}
+.edit-faction-btn:active{border-color:var(--accent);color:var(--accent);}
+#admin{background:#0a0010;}
+.admin-header{background:linear-gradient(135deg,#1a0030,#0a0020);border:1px solid #440088;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+.admin-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#cc44ff;letter-spacing:2px;}
+.admin-sub{font-size:11px;color:var(--muted);}
+.admin-stats{display:flex;gap:8px;margin-bottom:12px;}
+.admin-stat{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;}
+.admin-stat-num{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:#cc44ff;}
+.admin-stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.admin-search{background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:14px;padding:10px 14px;width:100%;outline:none;margin-bottom:10px;}
+.admin-search:focus{border-color:#cc44ff;}
+.admin-tab-btns{display:flex;gap:6px;margin-bottom:10px;}
+.admin-tab-btn{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;padding:8px;text-transform:uppercase;transition:all .2s;}
+.admin-tab-btn.active{border-color:#cc44ff;color:#cc44ff;}
+.admin-player-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.admin-player-item.blocked{border-color:var(--danger);background:#ff004408;}
+.admin-player-top{display:flex;align-items:center;gap:8px;}
+.admin-player-info{flex:1;}
+.admin-player-name{font-size:14px;font-weight:700;}
+.admin-player-meta{font-size:10px;color:var(--muted);}
+.admin-player-score{font-family:'Orbitron',monospace;font-size:13px;color:var(--accent);}
+.admin-player-details{display:flex;flex-wrap:wrap;gap:5px;}
+.admin-detail-tag{background:var(--bg);border-radius:6px;font-size:10px;padding:3px 8px;color:var(--muted);}
+.admin-detail-tag.ip{color:#44aaff;}
+.admin-detail-tag.tgid{color:#aa44ff;}
+.admin-block-btn{background:none;border:1px solid var(--danger);border-radius:8px;color:var(--danger);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;padding:5px 12px;transition:all .2s;}
+.admin-block-btn:active{background:var(--danger);color:#fff;}
+.admin-unblock-btn{border-color:var(--success);color:var(--success);}
+.admin-unblock-btn:active{background:var(--success);color:#000;}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+
+<div id="loading" class="screen active">
+  <div class="spinner"></div>
+  <div class="loading-text">Завантаження...</div>
+</div>
+
+<div id="welcome" class="screen">
+  <div class="logo">FACTION<br>TAP</div>
+  <div class="tagline">Обери сторону. Тапай за неї.</div>
+  <div class="welcome-user">
+    <div class="welcome-avatar">👤</div>
+    <div>
+      <div class="welcome-name" id="welcomeName">Гравець</div>
+      <div class="welcome-sub" id="welcomeSub">Telegram акаунт</div>
+    </div>
+  </div>
+  <div class="section-title">Обери або створи фракцію</div>
+  <div class="factions-list" id="factionsList"><div class="lb-empty">Завантаження...</div></div>
+  <button class="create-faction-btn" onclick="openCreateFaction()">➕ Створити свою фракцію</button>
+  <div class="error-msg" id="welcomeErr"></div>
+  <button class="btn btn-full" id="startBtn" onclick="tryStart()" disabled>Почати гру →</button>
+</div>
+
+<div id="game" class="screen">
+  <div class="top-bar">
+    <div class="player-info">
+      <div class="faction-badge" id="topBadge">❓</div>
+      <div>
+        <div class="player-name" id="topName">-</div>
+        <div class="player-score-small"><span class="online-dot"></span><span id="topScore">0 тапів</span></div>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('tap',this)">ТАП</button>
+      <button class="tab" onclick="switchTab('players',this)">ГРАВЦІ</button>
+      <button class="tab" onclick="switchTab('factions',this)">ФРАКЦІЇ</button>
+      <button class="tab" onclick="switchTab('myfaction',this)">МОЯ</button>
+    </div>
+  </div>
+
+  <div class="tab-content active" id="tab-tap">
+    <div class="tap-area">
+      <div class="score-display">
+        <div class="score-num" id="myScore">0</div>
+        <div class="score-label">Твої тапи</div>
+      </div>
+      <button class="tap-btn" id="tapBtn" onclick="handleTap(event)">❓</button>
+      <div class="faction-label" id="factionLabel">-</div>
+      <div class="sync-status synced" id="syncStatus">✅ підключено</div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-players">
+    <div class="lb-section">
+      <div class="lb-header">
+        <div class="lb-title">🏆 Топ гравців</div>
+        <button class="lb-refresh" onclick="loadPlayers()">↻</button>
+      </div>
+      <div id="playersLb"><div class="lb-empty">Завантаження...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-factions">
+    <div class="lb-section">
+      <div class="lb-header">
+        <div class="lb-title">⚔️ Рейтинг фракцій</div>
+        <button class="lb-refresh" onclick="loadFactions()">↻</button>
+      </div>
+      <div id="factionsLb"><div class="lb-empty">Завантаження...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-myfaction">
+    <div class="my-faction-section" id="myFactionSection">
+      <div class="lb-empty">Завантаження...</div>
+    </div>
+  </div>
+</div>
+
+<div id="admin" class="screen">
+  <div class="admin-header">
+    <div style="font-size:24px">🛡️</div>
+    <div>
+      <div class="admin-title">АДМІН ПАНЕЛЬ</div>
+      <div class="admin-sub">Тільки для адміністратора</div>
+    </div>
+  </div>
+  <div class="admin-stats">
+    <div class="admin-stat"><div class="admin-stat-num" id="statTotal">0</div><div class="admin-stat-label">Гравців</div></div>
+    <div class="admin-stat"><div class="admin-stat-num" id="statFactions">0</div><div class="admin-stat-label">Фракцій</div></div>
+    <div class="admin-stat"><div class="admin-stat-num" id="statBlocked">0</div><div class="admin-stat-label">Заблок.</div></div>
+  </div>
+  <div class="admin-tab-btns">
+    <button class="admin-tab-btn active" onclick="adminSwitchTab('players',this)">Гравці</button>
+    <button class="admin-tab-btn" onclick="adminSwitchTab('factions',this)">Фракції</button>
+  </div>
+  <input type="text" class="admin-search" id="adminSearch" placeholder="🔍 Пошук..." oninput="filterAdminPlayers()">
+  <div id="adminContent" style="overflow-y:auto;flex:1;padding-bottom:16px;"></div>
+  <button class="btn" onclick="backToGame()" style="margin-top:10px">← Назад до гри</button>
+</div>
+
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-title">➕ Нова фракція</div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Оберіть емодзі</div>
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Назва фракції</div>
+      <input type="text" id="factionNameInput" placeholder="Введіть назву..." maxlength="20" oninput="validateFactionForm()">
+    </div>
+    <div class="error-msg" id="factionErr"></div>
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeCreateFaction()">Скасувати</button>
+      <button class="btn" id="createFactionConfirm" onclick="createFaction()" disabled>Створити</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">✏️ Редагувати фракцію</div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Нова назва</div>
+      <input type="text" id="editFactionName" placeholder="Нова назва..." maxlength="20">
+    </div>
+    <div class="error-msg" id="editErr"></div>
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeEditFaction()">Скасувати</button>
+      <button class="btn" onclick="saveFactionName()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL='https://qzvpyomyetgyhcduzuom.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6dnB5b215ZXRneWhjZHV6dW9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjAzMjMsImV4cCI6MjA5Mjc5NjMyM30.nwGWdc5jNui8_UywZZwt_aRQ8TrfBcOfNU_ih6PKymo';
+const VERCEL_URL='https://tapalka-omega.vercel.app';
+const ADMIN_TG_ID='6667421162';
+const EMOJIS=['🔥','❄️','⚡','🌿','💀','🐉','🦅','🌊','⚔️','🛡️','🌙','☀️','🌋','🏔️','🐺','🦁','🐍','🦊','💎','🌸'];
+
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let player=null,myFaction=null,selectedFactionId=null,selectedEmoji='🔥',tgUser=null,pendingTaps=0,syncTimer=null,adminAllPlayers=[],adminCurrentTab='players';
+
+(function(){
+  const canvas=document.getElementById('particles'),ctx=canvas.getContext('2d');
+  let pts=[];
+  function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<55;i++)pts.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,vx:(Math.random()-.5)*.3,vy:-Math.random()*.4-.1,r:Math.random()*1.5+.5,a:Math.random()});
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pts.forEach(p=>{
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,160,255,${p.a*.5})`;ctx.fill();
+      p.x+=p.vx;p.y+=p.vy;p.a+=(Math.random()-.5)*.02;
+      p.a=Math.max(.05,Math.min(1,p.a));
+      if(p.y<-5){p.y=canvas.height+5;p.x=Math.random()*canvas.width;}
+      if(p.x<0)p.x=canvas.width;if(p.x>canvas.width)p.x=0;
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+const grid=document.getElementById('emojiGrid');
+EMOJIS.forEach((e,i)=>{
+  const el=document.createElement('div');
+  el.className='emoji-opt'+(i===0?' selected':'');
+  el.textContent=e;
+  el.onclick=()=>{document.querySelectorAll('.emoji-opt').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');selectedEmoji=e;};
+  grid.appendChild(el);
+});
+
+async function init(){
+  if(window.Telegram?.WebApp){window.Telegram.WebApp.ready();window.Telegram.WebApp.expand();tgUser=window.Telegram.WebApp.initDataUnsafe?.user;}
+  const tgId=tgUser?.id?.toString()||'';
+  if(tgId===ADMIN_TG_ID){await showAdmin();return;}
+
+  const savedId=localStorage.getItem('factionTapPlayerId');
+  if(savedId){
+    const{data}=await sb.from('players').select('*').eq('id',savedId).single();
+    if(data){
+      if(data.blocked){
+        document.getElementById('loading').innerHTML='<div style="text-align:center;color:#ff4466;font-family:Orbitron,monospace;font-size:16px;padding:40px">🚫 Вас заблоковано</div>';
+        return;
+      }
+      player=data;
+      if(player.faction_id){const{data:f}=await sb.from('factions').select('*').eq('id',player.faction_id).single();myFaction=f;}
+      enterGame();return;
+    }
+  }
+
+  const name=tgUser?(tgUser.first_name+(tgUser.last_name?' '+tgUser.last_name:'')):'Гравець';
+  document.getElementById('welcomeName').textContent=name;
+  if(tgUser?.username)document.getElementById('welcomeSub').textContent='@'+tgUser.username;
+  await loadWelcomeFactions();
+  document.getElementById('loading').classList.remove('active');
+  document.getElementById('welcome').classList.add('active');
+}
+
+async function loadWelcomeFactions(){
+  const{data}=await sb.from('factions').select('*').order('score',{ascending:false});
+  const list=document.getElementById('factionsList');
+  if(!data||data.length===0){list.innerHTML='<div class="lb-empty" style="padding:12px">Фракцій немає. Створи першу!</div>';return;}
+  list.innerHTML='';
+  data.forEach(f=>{
+    const el=document.createElement('div');
+    el.className='faction-item';el.dataset.id=f.id;
+    el.innerHTML=`<div class="fi-icon">${f.icon}</div><div class="fi-info"><div class="fi-name">${esc(f.name)}</div><div class="fi-members">${f.member_count||0} гравців</div></div><div class="fi-score">${(f.score||0).toLocaleString()}</div>`;
+    el.onclick=()=>{
+      document.querySelectorAll('.faction-item').forEach(x=>x.classList.remove('selected'));
+      el.classList.add('selected');selectedFactionId=f.id;
+      document.getElementById('startBtn').disabled=false;
+      document.getElementById('welcomeErr').textContent='';
+    };
+    list.appendChild(el);
+  });
+}
+
+async function tryStart(){
+  if(!selectedFactionId){document.getElementById('welcomeErr').textContent='Обери фракцію!';return;}
+  const btn=document.getElementById('startBtn');
+  btn.disabled=true;btn.textContent='Вхід...';
+  const tgId=tgUser?.id?.toString()||null;
+  const name=tgUser?(tgUser.first_name+(tgUser.last_name?' '+tgUser.last_name:'')):'Гравець_'+Math.floor(Math.random()*9999);
+  const id='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  try{
+    const res=await fetch(VERCEL_URL+'/api/player',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,faction_id:selectedFactionId,telegram_id:tgId})});
+    const data=await res.json();
+    if(data.player)player=data.player;else throw new Error();
+  }catch(e){
+    const{data,error}=await sb.from('players').insert({id,name,faction_id:selectedFactionId,telegram_id:tgId,score:0,blocked:false}).select().single();
+    if(error){document.getElementById('welcomeErr').textContent='Помилка. Спробуй ще раз.';btn.disabled=false;btn.textContent='Почати гру →';return;}
+    player=data;
+  }
+  const{data:fc}=await sb.from('factions').select('member_count').eq('id',selectedFactionId).single();
+  if(fc)await sb.from('factions').update({member_count:(fc.member_count||0)+1}).eq('id',selectedFactionId);
+  localStorage.setItem('factionTapPlayerId',id);
+  const{data:f}=await sb.from('factions').select('*').eq('id',selectedFactionId).single();
+  myFaction=f;
+  enterGame();
+}
+
+function openCreateFaction(){
+  document.getElementById('factionErr').textContent='';
+  document.getElementById('factionNameInput').value='';
+  document.getElementById('createFactionConfirm').disabled=true;
+  document.getElementById('createModal').classList.add('active');
+}
+function closeCreateFaction(){document.getElementById('createModal').classList.remove('active');}
+function validateFactionForm(){document.getElementById('createFactionConfirm').disabled=document.getElementById('factionNameInput').value.trim().length<2;}
+
+async function createFaction(){
+  const name=document.getElementById('factionNameInput').value.trim();
+  if(name.length<2)return;
+  document.getElementById('createFactionConfirm').disabled=true;
+  const tgId=tgUser?.id?.toString()||null;
+  if(tgId){
+    const{data:existing}=await sb.from('factions').select('id').eq('creator_id',tgId);
+    if(existing&&existing.length>0){document.getElementById('factionErr').textContent='Ти вже створив фракцію!';document.getElementById('createFactionConfirm').disabled=false;return;}
+  }
+  const id='f_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const{data,error}=await sb.from('factions').insert({id,name,icon:selectedEmoji,creator_id:tgId,score:0,member_count:0}).select().single();
+  if(error){document.getElementById('factionErr').textContent='Помилка. Спробуй ще раз.';document.getElementById('createFactionConfirm').disabled=false;return;}
+  closeCreateFaction();selectedFactionId=data.id;
+  await loadWelcomeFactions();
+  setTimeout(()=>{const el=document.querySelector(`[data-id="${data.id}"]`);if(el)el.click();},100);
+}
+
+function enterGame(){
+  document.getElementById('loading').classList.remove('active');
+  document.getElementById('welcome').classList.remove('active');
+  document.getElementById('game').classList.add('active');
+  const icon=myFaction?.icon||'❓';
+  document.getElementById('topBadge').textContent=icon;
+  document.getElementById('topName').textContent=player.name;
+  document.getElementById('tapBtn').textContent=icon;
+  document.getElementById('factionLabel').textContent=myFaction?myFaction.name:'Без фракції';
+  player.score=player.score||0;
+  updateScoreDisplay();
+  subscribeRealtime();
+
+  // Оновлюємо IP при кожному вході
+  fetch(VERCEL_URL+'/api/player',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:player.id,score:player.score})
+  }).catch(()=>{});
+}
+
+function backToGame(){
+  document.getElementById('admin').classList.remove('active');
+  document.getElementById('game').classList.add('active');
+}
+
+function handleTap(e){
+  player.score++;pendingTaps++;
+  updateScoreDisplay();
+  const plus=document.createElement('div');
+  plus.className='float-plus';plus.textContent='+1';
+  plus.style.left=(e.clientX-12)+'px';plus.style.top=(e.clientY-20)+'px';
+  plus.style.color='#00f0ff';
+  document.body.appendChild(plus);setTimeout(()=>plus.remove(),700);
+  const rip=document.createElement('div');rip.className='ripple';
+  const sz=60;rip.style.cssText=`width:${sz}px;height:${sz}px;left:${e.clientX-sz/2}px;top:${e.clientY-sz/2}px;background:#00f0ff70`;
+  document.body.appendChild(rip);setTimeout(()=>rip.remove(),500);
+  const sc=document.getElementById('myScore');sc.classList.remove('bump');void sc.offsetWidth;sc.classList.add('bump');setTimeout(()=>sc.classList.remove('bump'),100);
+  setSyncStatus('syncing','⏳ збереження...');
+  clearTimeout(syncTimer);syncTimer=setTimeout(syncScore,2000);
+}
+
+async function syncScore(){
+  if(!player||pendingTaps===0)return;
+  const taps=pendingTaps;pendingTaps=0;
+  try{
+    await fetch(VERCEL_URL+'/api/player',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:player.id,score:player.score})});
+  }catch(e){
+    await sb.from('players').update({score:player.score}).eq('id',player.id);
+  }
+  if(myFaction){
+    const{data:f}=await sb.from('factions').select('score').eq('id',myFaction.id).single();
+    if(f)await sb.from('factions').update({score:(f.score||0)+taps}).eq('id',myFaction.id);
+  }
+  setSyncStatus('synced','✅ збережено');
+}
+
+function updateScoreDisplay(){
+  document.getElementById('myScore').textContent=player.score.toLocaleString();
+  document.getElementById('topScore').textContent=player.score.toLocaleString()+' тапів';
+}
+function setSyncStatus(cls,text){const el=document.getElementById('syncStatus');el.className='sync-status '+cls;el.textContent=text;}
+
+function subscribeRealtime(){
+  sb.channel('game').on('postgres_changes',{event:'*',schema:'public',table:'players'},()=>{
+    const a=document.querySelector('.tab-content.active');
+    if(a?.id==='tab-players')loadPlayers();
+  }).on('postgres_changes',{event:'*',schema:'public',table:'factions'},()=>{
+    const a=document.querySelector('.tab-content.active');
+    if(a?.id==='tab-factions')loadFactions();
+  }).subscribe();
+}
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');
+  if(name==='players')loadPlayers();
+  if(name==='factions')loadFactions();
+  if(name==='myfaction')loadMyFaction();
+}
+
+async function loadPlayers(){
+  document.getElementById('playersLb').innerHTML='<div class="lb-empty">⏳</div>';
+  const{data}=await sb.from('players').select('*,factions(name,icon)').eq('blocked',false).order('score',{ascending:false}).limit(50);
+  if(!data){document.getElementById('playersLb').innerHTML='<div class="lb-empty">❌ Помилка</div>';return;}
+  const max=data[0]?.score||1;
+  let html='';
+  data.forEach((p,i)=>{
+    const icon=p.factions?.icon||'❓',fname=p.factions?.name||'Без фракції',isMe=p.id===player?.id,rank=i+1;
+    const rc=rank<=3?['top1','top2','top3'][rank-1]:'',re=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    html+=`<div class="lb-item ${isMe?'is-me':''}"><div class="lb-rank ${rc}">${re}</div><div class="lb-icon">${icon}</div><div class="lb-info"><div class="lb-name">${esc(p.name)}${isMe?' 👈':''}</div><div class="lb-sub">${esc(fname)}</div><div class="progress-bar-wrap"><div class="progress-bar" style="width:${Math.round(p.score/max*100)}%;background:#00f0ff"></div></div></div><div class="lb-score">${(p.score||0).toLocaleString()}</div></div>`;
+  });
+  document.getElementById('playersLb').innerHTML=html||'<div class="lb-empty">Поки немає гравців</div>';
+}
+
+async function loadFactions(){
+  document.getElementById('factionsLb').innerHTML='<div class="lb-empty">⏳</div>';
+  const{data}=await sb.from('factions').select('*').order('score',{ascending:false});
+  if(!data){document.getElementById('factionsLb').innerHTML='<div class="lb-empty">❌ Помилка</div>';return;}
+  const max=data[0]?.score||1,myFid=player?.faction_id;
+  let html='';
+  data.forEach((f,i)=>{
+    const isMyF=f.id===myFid,rank=i+1,re=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    html+=`<div class="lb-item ${isMyF?'is-me':''}"><div class="lb-rank">${re}</div><div class="lb-icon">${f.icon}</div><div class="lb-info"><div class="lb-name">${esc(f.name)}${isMyF?' 👈':''}</div><div class="lb-sub">${f.member_count||0} гравців</div><div class="progress-bar-wrap"><div class="progress-bar" style="width:${Math.round((f.score||0)/max*100)}%;background:#00f0ff"></div></div></div><div class="lb-score">${(f.score||0).toLocaleString()}</div></div>`;
+  });
+  document.getElementById('factionsLb').innerHTML=html||'<div class="lb-empty">Фракцій немає</div>';
+}
+
+async function loadMyFaction(){
+  const section=document.getElementById('myFactionSection');
+  if(!myFaction){section.innerHTML='<div class="lb-empty">Ти не в жодній фракції</div>';return;}
+  const{data:members}=await sb.from('players').select('name,score').eq('faction_id',myFaction.id).eq('blocked',false).order('score',{ascending:false}).limit(20);
+  const isCreator=myFaction.creator_id===tgUser?.id?.toString();
+  let html=`<div class="faction-info-card"><div class="faction-big-icon">${myFaction.icon}</div><div class="faction-big-name">${esc(myFaction.name)}</div><div class="faction-stats"><div class="faction-stat"><div class="faction-stat-num">${(myFaction.score||0).toLocaleString()}</div><div class="faction-stat-label">Тапів</div></div><div class="faction-stat"><div class="faction-stat-num">${myFaction.member_count||0}</div><div class="faction-stat-label">Гравців</div></div></div>${isCreator?'<button class="edit-faction-btn" onclick="openEditFaction()">✏️ Редагувати назву</button>':''}</div><div class="lb-title" style="padding:8px 0 4px;border-bottom:1px solid var(--border)">👥 Учасники</div>`;
+  if(members&&members.length>0){
+    members.forEach((m,i)=>{
+      const isMe=m.name===player?.name;
+      html+=`<div class="lb-item ${isMe?'is-me':''}"><div class="lb-rank">${i+1}</div><div class="lb-info"><div class="lb-name">${esc(m.name)}${isMe?' 👈':''}</div></div><div class="lb-score">${(m.score||0).toLocaleString()}</div></div>`;
+    });
+  }else html+='<div class="lb-empty">Поки немає учасників</div>';
+  section.innerHTML=html;
+}
+
+function openEditFaction(){document.getElementById('editFactionName').value=myFaction?.name||'';document.getElementById('editErr').textContent='';document.getElementById('editModal').classList.add('active');}
+function closeEditFaction(){document.getElementById('editModal').classList.remove('active');}
+async function saveFactionName(){
+  const name=document.getElementById('editFactionName').value.trim();
+  if(name.length<2){document.getElementById('editErr').textContent='Назва занадто коротка';return;}
+  const{error}=await sb.from('factions').update({name}).eq('id',myFaction.id);
+  if(error){document.getElementById('editErr').textContent='Помилка збереження';return;}
+  myFaction.name=name;document.getElementById('factionLabel').textContent=name;
+  closeEditFaction();loadMyFaction();
+}
+
+async function showAdmin(){
+  document.getElementById('loading').classList.remove('active');
+  document.getElementById('admin').classList.add('active');
+  await loadAdminData();
+}
+
+async function loadAdminData(){
+  const{data:players}=await sb.from('players').select('*,factions(name,icon)').order('score',{ascending:false});
+  const{data:factions}=await sb.from('factions').select('*').order('score',{ascending:false});
+  adminAllPlayers=players||[];
+  document.getElementById('statTotal').textContent=adminAllPlayers.length;
+  document.getElementById('statFactions').textContent=(factions||[]).length;
+  document.getElementById('statBlocked').textContent=adminAllPlayers.filter(p=>p.blocked).length;
+  if(adminCurrentTab==='players')renderAdminPlayers(adminAllPlayers);
+  else renderAdminFactions(factions||[]);
+}
+
+function adminSwitchTab(tab,btn){
+  adminCurrentTab=tab;
+  document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('adminSearch').style.display=tab==='players'?'':'none';
+  loadAdminData();
+}
+
+function filterAdminPlayers(){
+  const q=document.getElementById('adminSearch').value.toLowerCase();
+  renderAdminPlayers(adminAllPlayers.filter(p=>p.name.toLowerCase().includes(q)||(p.telegram_id||'').includes(q)||(p.ip_address||'').includes(q)));
+}
+
+function renderAdminPlayers(list){
+  let html='';
+  list.forEach(p=>{
+    const icon=p.factions?.icon||'❓',fname=p.factions?.name||'Без фракції';
+    const joined=p.joined_at?new Date(p.joined_at).toLocaleDateString('uk'):'—';
+    html+=`<div class="admin-player-item ${p.blocked?'blocked':''}">
+      <div class="admin-player-top">
+        <div style="font-size:20px">${icon}</div>
+        <div class="admin-player-info"><div class="admin-player-name">${esc(p.name)} ${p.blocked?'🚫':''}</div><div class="admin-player-meta">${esc(fname)} · ${joined}</div></div>
+        <div class="admin-player-score">${(p.score||0).toLocaleString()}</div>
+      </div>
+      <div class="admin-player-details">
+        <div class="admin-detail-tag tgid">TG ID: ${p.telegram_id||'—'}</div>
+        <div class="admin-detail-tag ip">IP: ${p.ip_address||'—'}</div>
+        ${p.blocked?'<div class="admin-detail-tag" style="color:var(--danger)">ЗАБЛОК.</div>':''}
+      </div>
+      <div>${p.blocked
+        ?`<button class="admin-block-btn admin-unblock-btn" onclick="toggleBlock('${p.id}',false)">✅ Розблокувати</button>`
+        :`<button class="admin-block-btn" onclick="toggleBlock('${p.id}',true)">🚫 Заблокувати</button>`
+      }</div>
+    </div>`;
+  });
+  document.getElementById('adminContent').innerHTML=html||'<div class="lb-empty">Гравців не знайдено</div>';
+}
+
+function renderAdminFactions(list){
+  let html='';
+  list.forEach(f=>{
+    html+=`<div class="admin-player-item">
+      <div class="admin-player-top">
+        <div style="font-size:20px">${f.icon}</div>
+        <div class="admin-player-info"><div class="admin-player-name">${esc(f.name)}</div><div class="admin-player-meta">${f.member_count||0} гравців</div></div>
+        <div class="admin-player-score">${(f.score||0).toLocaleString()}</div>
+      </div>
+      <div class="admin-player-details"><div class="admin-detail-tag tgid">Creator TG: ${f.creator_id||'—'}</div></div>
+    </div>`;
+  });
+  document.getElementById('adminContent').innerHTML=html||'<div class="lb-empty">Фракцій немає</div>';
+}
+
+async function toggleBlock(playerId,block){
+  await sb.from('players').update({blocked:block}).eq('id',playerId);
+  await loadAdminData();
+}
+
+function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+init();
+</script>
+</body>
+</html>
