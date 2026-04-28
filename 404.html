@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+  // GitHub Pages 404 fix for Telegram WebApp
+  // Redirects any 404 back to index.html preserving the path
+  var l = window.location;
+  l.replace(
+    l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+    '/Tapalka/' +
+    '?p=' + l.pathname.slice(1) + l.search + l.hash
+  );
+</script>
+</head>
+<body></body>
+</html>
